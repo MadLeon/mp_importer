@@ -19,6 +19,7 @@ public partial class FileEntryViewModel : ObservableObject
 
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
+    public string? JsonFilePath => _jsonFilePath;
 
     [ObservableProperty] private bool _isChecked;
     [ObservableProperty] private int _index;
