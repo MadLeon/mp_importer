@@ -3,7 +3,7 @@
 ## 项目介绍
 - 本项目的目的是从目标文件夹中提取所有 .xlsm 文件中的 Manufacturing Process 条目
 - 提取出的条目经过人工审核后存入数据中
-- .xlsm 文件的格式参照
+- .xlsm 文件的格式参照 ./file_structure.md
 - 数据库的具体内容参考机器级的 .claude/skills/database 技能
 
 ## 开发步骤
