@@ -1,6 +1,7 @@
 # 项目描述
 
 ## 项目介绍
+- 本项目计划使用 C# 进行桌面程序开发
 - 本项目的目的是从目标文件夹中提取所有 .xlsm 文件中的 Manufacturing Process 条目
 - 提取出的条目经过人工审核后存入数据中
 - .xlsm 文件的格式参照 ./file_structure.md
