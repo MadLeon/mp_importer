@@ -9,7 +9,6 @@ src/**/logs/
 results/
 
 # Database files (local only)
-data/*.db
 data/*.db.backup*
 
 # OS
