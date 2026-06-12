@@ -1,0 +1,21 @@
+# Build output
+src/**/bin/
+src/**/obj/
+
+# Logs
+src/**/logs/
+
+# Extraction results
+results/
+
+# Database files (local only)
+data/*.db
+data/*.db.backup*
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vs/
+*.user
