@@ -35,6 +35,13 @@ public class JsonResultService
         return sb.ToString().TrimEnd();
     }
 
+    public void SaveAll(ExtractionResult result, string filePath)
+    {
+        var json = JsonConvert.SerializeObject(result, Formatting.Indented);
+        File.WriteAllText(filePath, json, Encoding.UTF8);
+        Log.Information("Saved result to {Path}", filePath);
+    }
+
     public void SaveFromText(string text, string filePath)
     {
         var existing = LoadTyped(filePath);

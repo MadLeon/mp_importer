@@ -1,5 +1,7 @@
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
+using ClosedXML.Excel;
 using MpImporter.Services;
 using MpImporter.ViewModels;
 using Serilog;
@@ -25,6 +27,14 @@ public partial class App : Application
 
         Log.Information("MP Importer starting up");
 
+        // Warm up ClosedXML in the background to eliminate first-extract delay
+        Task.Run(() =>
+        {
+            using var wb = new XLWorkbook();
+            wb.AddWorksheet("warmup");
+            Log.Debug("ClosedXML warmup complete");
+        });
+
         var dbPath = ResolveDbPath(baseDir);
         Log.Information("Using database: {DbPath}", dbPath);
 
@@ -49,7 +59,7 @@ public partial class App : Application
     {
         // Walk up from exe directory to find data/record.db
         var dir = new DirectoryInfo(baseDir);
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 8; i++)
         {
             var candidate = Path.Combine(dir.FullName, "data", "record.db");
             if (File.Exists(candidate))

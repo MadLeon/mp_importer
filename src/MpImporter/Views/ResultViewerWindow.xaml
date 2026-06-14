@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="View Extraction Results" Height="500" Width="700"
+        Title="View Extraction Results" Height="640" Width="780"
         WindowStartupLocation="CenterOwner">
     <DockPanel Margin="8">
         <Button DockPanel.Dock="Bottom"
@@ -14,13 +14,78 @@
                 Width="80" Height="32"
                 Margin="0,8,0,0"/>
 
-        <TextBox AcceptsReturn="True"
-                 AcceptsTab="True"
-                 VerticalScrollBarVisibility="Auto"
-                 HorizontalScrollBarVisibility="Auto"
-                 FontFamily="Consolas"
-                 FontSize="13"
-                 Text="{Binding RawText, UpdateSourceTrigger=PropertyChanged}"
-                 VerticalAlignment="Stretch"/>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header info fields -->
+            <Grid Grid.Row="0" Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="150"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="28"/>
+                    <RowDefinition Height="4"/>
+                    <RowDefinition Height="28"/>
+                    <RowDefinition Height="4"/>
+                    <RowDefinition Height="28"/>
+                    <RowDefinition Height="4"/>
+                    <RowDefinition Height="28"/>
+                    <RowDefinition Height="4"/>
+                    <RowDefinition Height="28"/>
+                </Grid.RowDefinitions>
+
+                <!-- Row 0: PO Number / OE Number -->
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="PO Number" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="0" Grid.Column="1" Text="{Binding PoNumber, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Row="0" Grid.Column="3" Text="OE Number" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="0" Grid.Column="4" Text="{Binding OeNumber, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+
+                <!-- Row 2: Job Number / Line Number -->
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Job Number" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="2" Grid.Column="1" Text="{Binding JobNumber, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Row="2" Grid.Column="3" Text="Line Number" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="2" Grid.Column="4" Text="{Binding LineNumber, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+
+                <!-- Row 4: Drawing Number / Revision -->
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Drawing Number" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="4" Grid.Column="1" Text="{Binding DrawingNumber, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Row="4" Grid.Column="3" Text="Revision" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="4" Grid.Column="4" Text="{Binding Revision, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+
+                <!-- Row 6: Release Date / Delivery Date -->
+                <TextBlock Grid.Row="6" Grid.Column="0" Text="Release Date" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="6" Grid.Column="1" Text="{Binding DrawingReleaseDate, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Row="6" Grid.Column="3" Text="Delivery Date" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="6" Grid.Column="4" Text="{Binding DeliveryRequiredDate, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+
+                <!-- Row 8: Description / Quantity -->
+                <TextBlock Grid.Row="8" Grid.Column="0" Text="Description" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="8" Grid.Column="1" Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Row="8" Grid.Column="3" Text="Quantity" VerticalAlignment="Center"/>
+                <TextBox   Grid.Row="8" Grid.Column="4" Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center"/>
+            </Grid>
+
+            <!-- Process steps label -->
+            <TextBlock Grid.Row="1" Text="Process Steps" FontWeight="SemiBold" Margin="0,0,0,4"/>
+
+            <!-- Process steps text area -->
+            <TextBox Grid.Row="2"
+                     AcceptsReturn="True"
+                     AcceptsTab="True"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas"
+                     FontSize="13"
+                     Text="{Binding RawText, UpdateSourceTrigger=PropertyChanged}"
+                     VerticalAlignment="Stretch"/>
+        </Grid>
     </DockPanel>
 </Window>

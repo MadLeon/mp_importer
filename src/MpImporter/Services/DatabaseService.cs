@@ -6,38 +6,7 @@ namespace MpImporter.Services;
 
 public class DatabaseService
 {
-    public async Task<List<ProcessStep>?> GetExistingStepsAsync(
-        ExtractionResult result, string dbPath)
-    {
-        await using var conn = new SqliteConnection($"Data Source={dbPath}");
-        await conn.OpenAsync();
-
-        var partId = await FindPartIdAsync(conn, result.DrawingNumber, result.Revision);
-        if (partId == null) return null;
-
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT shop_code, row_number, description
-            FROM process_template
-            WHERE part_id = $pid
-            ORDER BY row_number
-            """;
-        cmd.Parameters.AddWithValue("$pid", partId.Value);
-
-        var steps = new List<ProcessStep>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            steps.Add(new ProcessStep
-            {
-                ShopCode           = reader.GetString(0),
-                RowNumber          = reader.GetInt32(1),
-                ProcessDescription = reader.GetString(2),
-            });
-        }
-
-        return steps.Count > 0 ? steps : null;
-    }
+    private record PartRecord(long Id, string Revision, string? Description);
 
     public async Task UploadAsync(ExtractionResult result, string dbPath)
     {
@@ -53,21 +22,70 @@ public class DatabaseService
             await pragma.ExecuteNonQueryAsync();
         }
 
-        var partId = await FindPartIdAsync(conn, result.DrawingNumber, result.Revision);
-        if (partId == null)
-            throw new InvalidOperationException(
-                $"Part not found in database: drawing '{result.DrawingNumber}' rev '{result.Revision}'. " +
-                "Please ensure the part exists before uploading process templates.");
+        var part = await FindPartAsync(conn, result.DrawingNumber, result.Revision);
 
         await using var tx = await conn.BeginTransactionAsync();
         try
         {
-            await DeleteExistingStepsAsync(conn, tx, partId.Value);
-            await InsertStepsAsync(conn, tx, partId.Value, result.ProcessSteps);
-            await tx.CommitAsync();
+            long partId;
+            if (part == null)
+            {
+                partId = await InsertPartAsync(conn, tx, result);
+                Log.Information("Inserted new part: {Drawing} rev {Rev}, part_id={PartId}",
+                    result.DrawingNumber, result.Revision, partId);
+                await InsertStepsAsync(conn, tx, partId, result.ProcessSteps);
+                Log.Information("Inserted {Count} process step(s) for part_id={PartId}",
+                    result.ProcessSteps.Count, partId);
+            }
+            else
+            {
+                partId = part.Id;
 
-            Log.Information("Uploaded {Count} process step(s) for part_id={PartId}",
-                result.ProcessSteps.Count, partId.Value);
+                // Handle revision
+                var dbRev = part.Revision;
+                var extRev = result.Revision;
+                if ((string.IsNullOrWhiteSpace(dbRev) || dbRev == "-") && !string.IsNullOrWhiteSpace(extRev))
+                {
+                    await UpdatePartFieldAsync(conn, tx, partId, "revision", extRev);
+                    Log.Information("Updated revision for part_id={PartId} ({Drawing}): '{Old}' → '{New}'",
+                        partId, result.DrawingNumber, dbRev, extRev);
+                }
+                else if (dbRev != extRev)
+                {
+                    Log.Warning("Revision mismatch for {Drawing}: DB='{DbRev}' extracted='{ExtRev}' — not modified",
+                        result.DrawingNumber, dbRev, extRev);
+                }
+
+                // Handle description
+                var dbDesc = part.Description;
+                var extDesc = result.Description;
+                if (string.IsNullOrWhiteSpace(dbDesc) && !string.IsNullOrWhiteSpace(extDesc))
+                {
+                    await UpdatePartFieldAsync(conn, tx, partId, "description", extDesc);
+                    Log.Information("Updated description for part_id={PartId} ({Drawing}): → '{New}'",
+                        partId, result.DrawingNumber, extDesc);
+                }
+                else if (!string.IsNullOrWhiteSpace(dbDesc) && dbDesc != extDesc)
+                {
+                    Log.Warning("Description mismatch for {Drawing}: DB='{DbDesc}' extracted='{ExtDesc}' — not modified",
+                        result.DrawingNumber, dbDesc, extDesc);
+                }
+
+                // Handle process_template
+                if (await HasProcessTemplatesAsync(conn, partId))
+                {
+                    Log.Warning("Process templates already exist for part_id={PartId} ({Drawing}) — skipping insertion",
+                        partId, result.DrawingNumber);
+                }
+                else
+                {
+                    await InsertStepsAsync(conn, tx, partId, result.ProcessSteps);
+                    Log.Information("Inserted {Count} process step(s) for part_id={PartId}",
+                        result.ProcessSteps.Count, partId);
+                }
+            }
+
+            await tx.CommitAsync();
         }
         catch
         {
@@ -76,30 +94,72 @@ public class DatabaseService
         }
     }
 
-    private static async Task<long?> FindPartIdAsync(
+    /// <summary>
+    /// Searches by drawing_number only. Returns null if no matching part exists.
+    /// </summary>
+    private static async Task<PartRecord?> FindPartAsync(
         SqliteConnection conn, string drawingNumber, string revision)
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT id FROM part
-            WHERE drawing_number = $dn AND revision = $rev
+            SELECT id, revision, description
+            FROM part
+            WHERE drawing_number = $dn
+            ORDER BY id
             LIMIT 1
             """;
         cmd.Parameters.AddWithValue("$dn", drawingNumber);
-        cmd.Parameters.AddWithValue("$rev", string.IsNullOrWhiteSpace(revision) ? "-" : revision);
 
-        var result = await cmd.ExecuteScalarAsync();
-        return result is long id ? id : null;
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return null;
+
+        return new PartRecord(
+            Id:          reader.GetInt64(0),
+            Revision:    reader.GetString(1),
+            Description: reader.IsDBNull(2) ? null : reader.GetString(2));
     }
 
-    private static async Task DeleteExistingStepsAsync(
-        SqliteConnection conn, System.Data.Common.DbTransaction tx, long partId)
+    private static async Task<long> InsertPartAsync(
+        SqliteConnection conn, System.Data.Common.DbTransaction tx, ExtractionResult result)
     {
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = (SqliteTransaction)tx;
-        cmd.CommandText = "DELETE FROM process_template WHERE part_id = $pid";
-        cmd.Parameters.AddWithValue("$pid", partId);
+        cmd.CommandText = """
+            INSERT INTO part (drawing_number, revision, description)
+            VALUES ($dn, $rev, $desc)
+            RETURNING id
+            """;
+        cmd.Parameters.AddWithValue("$dn",   result.DrawingNumber);
+        cmd.Parameters.AddWithValue("$rev",  string.IsNullOrWhiteSpace(result.Revision) ? "-" : result.Revision);
+        cmd.Parameters.AddWithValue("$desc", string.IsNullOrWhiteSpace(result.Description) ? (object)DBNull.Value : result.Description);
+
+        var id = await cmd.ExecuteScalarAsync();
+        return (long)id!;
+    }
+
+    private static async Task UpdatePartFieldAsync(
+        SqliteConnection conn, System.Data.Common.DbTransaction tx,
+        long partId, string column, string value)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = (SqliteTransaction)tx;
+        cmd.CommandText = $"""
+            UPDATE part SET {column} = $val, updated_at = datetime('now', 'localtime')
+            WHERE id = $id
+            """;
+        cmd.Parameters.AddWithValue("$val", value);
+        cmd.Parameters.AddWithValue("$id",  partId);
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<bool> HasProcessTemplatesAsync(
+        SqliteConnection conn, long partId)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM process_template WHERE part_id = $pid";
+        cmd.Parameters.AddWithValue("$pid", partId);
+        var count = (long)(await cmd.ExecuteScalarAsync())!;
+        return count > 0;
     }
 
     private static async Task InsertStepsAsync(

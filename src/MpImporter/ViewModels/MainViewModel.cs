@@ -106,7 +106,7 @@ public partial class MainViewModel : ObservableObject
 
         if (confirm != System.Windows.MessageBoxResult.Yes) return;
 
-        int success = 0, failed = 0, skipped = 0;
+        int success = 0, failed = 0;
         foreach (var entry in targets)
         {
             try
@@ -114,28 +114,6 @@ public partial class MainViewModel : ObservableObject
                 var result = _jsonService.LoadTyped(entry.JsonFilePath!);
                 if (result == null)
                     throw new InvalidOperationException("Failed to load extraction result from JSON.");
-
-                // Check for existing steps in the database
-                var existing = await _dbService.GetExistingStepsAsync(result, _dbPath);
-                if (existing != null)
-                {
-                    if (StepsAreIdentical(existing, result.ProcessSteps))
-                    {
-                        Log.Information("Skipped {Drawing} — database already up to date", result.DrawingNumber);
-                        skipped++;
-                        continue;
-                    }
-
-                    var vm = new OverwriteConfirmViewModel(
-                        result.DrawingNumber, result.Revision, existing, result.ProcessSteps);
-                    var dialog = new Views.OverwriteConfirmWindow { DataContext = vm };
-                    if (dialog.ShowDialog() != true)
-                    {
-                        Log.Information("User skipped overwrite for {Drawing}", result.DrawingNumber);
-                        skipped++;
-                        continue;
-                    }
-                }
 
                 await _dbService.UploadAsync(result, _dbPath);
                 success++;
@@ -147,7 +125,7 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        var msg = $"Upload complete: {success} succeeded, {skipped} skipped, {failed} failed.";
+        var msg = $"Upload complete: {success} succeeded, {failed} failed.";
         System.Windows.MessageBox.Show(
             msg, "Upload Result",
             System.Windows.MessageBoxButton.OK,
@@ -167,17 +145,4 @@ public partial class MainViewModel : ObservableObject
             FileEntries[i].Index = i + 1;
     }
 
-    private static bool StepsAreIdentical(
-        List<Models.ProcessStep> a, List<Models.ProcessStep> b)
-    {
-        if (a.Count != b.Count) return false;
-        for (int i = 0; i < a.Count; i++)
-        {
-            if (a[i].ShopCode           != b[i].ShopCode           ||
-                a[i].RowNumber          != b[i].RowNumber           ||
-                a[i].ProcessDescription != b[i].ProcessDescription)
-                return false;
-        }
-        return true;
-    }
 }
